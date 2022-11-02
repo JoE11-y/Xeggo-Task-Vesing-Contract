@@ -17,7 +17,7 @@ contract Vesting is ERC20 {
 
     uint256 public vestingPeriod;
 
-    address[] private disperseAddresses;
+    address[] private vestedAddresses;
 
     uint256 public tokenReleaseInterval;
 
@@ -25,6 +25,13 @@ contract Vesting is ERC20 {
 
     uint256 public amountToRelease;
 
+    /**
+     * @notice Constructor that sets the initial states for the contract
+     * @param _initialSupply: initial supply of the token
+     * @param _vestingPeriod: vesting period of token
+     * @param _amountToRelease: amount of tokens to release at each release interval
+     * @param _tokenReleaseInterval: release schedule in minutes
+     */
     constructor(
         uint256 _initialSupply,
         uint256 _vestingPeriod,
@@ -34,22 +41,35 @@ contract Vesting is ERC20 {
         _mint(address(this), _initialSupply * (10**decimals()));
         tokenDeployer = msg.sender;
         vestingPeriod = block.timestamp + (_vestingPeriod * 1 days);
+        lastReleaseTimeStamp = block.timestamp;
         amountToRelease = _amountToRelease * 1 ether;
         tokenReleaseInterval = _tokenReleaseInterval * 1 minutes;
     }
 
+    /**
+     * @notice set admin address
+     * @param _address: address of admin
+     */
     function setAdmin(address _address) public onlyAdminOrDeployer {
         admin = _address;
     }
 
-    function addDisperseAddress(address _address) public onlyAdminOrDeployer {
+    /**
+     * @notice adds vested address to array
+     * @param _address: new address
+     */
+    function addVestedAddress(address _address) public onlyAdminOrDeployer {
         require(
-            disperseAddresses.length < 10,
+            vestedAddresses.length < 10,
             "You can only add up to 10 addresses"
         );
-        disperseAddresses.push(_address);
+        require(_address != address(0), "not zero address");
+        vestedAddresses.push(_address);
     }
 
+    /**
+     * @notice sends token to vested addresses
+     */
     function sendTokens() external {
         require(block.timestamp < vestingPeriod, "Vesting period over");
         require(
@@ -57,12 +77,16 @@ contract Vesting is ERC20 {
             "Too Recent"
         );
 
-        for (uint256 i = 0; i < disperseAddresses.length; i++) {
-            transfer(disperseAddresses[i], amountToRelease);
+        for (uint256 i = 0; i < vestedAddresses.length; i++) {
+            transfer(vestedAddresses[i], amountToRelease);
         }
         lastReleaseTimeStamp = block.timestamp;
     }
 
+    /**
+     * @notice changes release interval
+     * @param _minutes: new interval in minutes
+     */
     function updateReleaseInterval(uint256 _minutes)
         public
         onlyAdminOrDeployer
@@ -70,8 +94,19 @@ contract Vesting is ERC20 {
         tokenReleaseInterval = _minutes * 1 minutes;
     }
 
+    /**
+     * @notice changes amount of token to release
+     * @param _amountToRelease: new amount to release
+     */
     function updateAmount(uint256 _amountToRelease) public onlyAdminOrDeployer {
         amountToRelease = _amountToRelease * 1 ether;
+    }
+
+    /**
+     * @notice returns array of vested addresses
+     */
+    function getVestedAddresses() public view returns (address[] memory) {
+        return vestedAddresses;
     }
 
     modifier onlyAdminOrDeployer() {
